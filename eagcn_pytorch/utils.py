@@ -1,26 +1,20 @@
-import numpy as np
 import scipy.sparse as sp
 import torch
 import csv
-from rdkit.Chem import MolFromSmiles, SDMolSupplier
+from rdkit.Chem import AllChem as Chem
 from torch.utils.data import Dataset
-from neural_fp import *
+from eagcn_pytorch.neural_fp import *
 import math
-import os
 import scipy
-from sklearn.utils import shuffle, resample
-import pickle
-import openbabel
-import pybel
 import operator
-from torch.autograd import Variable
-import torch.nn.functional as F
+
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 IntTensor = torch.cuda.IntTensor if use_cuda else torch.IntTensor
 DoubleTensor = torch.cuda.DoubleTensor if use_cuda else torch.DoubleTensor
+
 
 def load_data(dataset, path = '../data/'):
     if dataset == 'tox21':
@@ -31,10 +25,13 @@ def load_data(dataset, path = '../data/'):
         x_all, y_all, target, sizes = load_lipo()
     elif dataset == 'freesolv':
         x_all, y_all, target, sizes = load_freesolv()
-    return(x_all, y_all, target, sizes)
+    else:
+        raise ValueError("Data set {} not registered".format(dataset))
+    return x_all, y_all, target, sizes
+
 
 def load_lipo(path='../data/', dataset = 'Lipophilicity.csv', bondtype_freq = 10,
-                    atomtype_freq=10):
+              atomtype_freq=10):
     print('Loading {} dataset...'.format(dataset))
     data = []
     with open('{}{}'.format(path, dataset), 'r') as data_fid:
@@ -77,7 +74,7 @@ def load_lipo(path='../data/', dataset = 'Lipophilicity.csv', bondtype_freq = 10
     count_1 = 0
     count_2 = 0
     for i in range(1, len(data)):
-        mol = MolFromSmiles(data[i][2])
+        mol = Chem.MolFromSmiles(data[i][2])
         count_1 += 1
         try:
             (afm, adj, bft, adjTensor_OrderAtt,
@@ -102,8 +99,9 @@ def load_lipo(path='../data/', dataset = 'Lipophilicity.csv', bondtype_freq = 10
 
     return(x_all, labels, target, mol_sizes)
 
+
 def load_freesolv(path='../data/', dataset = 'SAMPL.csv', bondtype_freq = 3,
-                    atomtype_freq=3):
+                  atomtype_freq=3):
     print('Loading {} dataset...'.format(dataset))
     data = []
     with open('{}{}'.format(path, dataset), 'r') as data_fid:
@@ -146,12 +144,12 @@ def load_freesolv(path='../data/', dataset = 'SAMPL.csv', bondtype_freq = 3,
     count_1 = 0
     count_2 = 0
     for i in range(1, len(data)):
-        mol = MolFromSmiles(data[i][1])
+        mol = Chem.MolFromSmiles(data[i][1])
         count_1 += 1
         try:
             (afm, adj, bft, adjTensor_OrderAtt,
              adjTensor_AromAtt, adjTensor_ConjAtt, adjTensor_RingAtt) = molToGraph(mol, filted_bondtype_list_order,
-                                         filted_atomtype_list_order).dump_as_matrices_Att()
+                                                                                   filted_atomtype_list_order).dump_as_matrices_Att()
             mol_sizes.append(adj.shape[0])
             labels.append([np.float32(data[i][2])])
             x_all.append([afm, adj, bft, adjTensor_OrderAtt, adjTensor_AromAtt, adjTensor_ConjAtt, adjTensor_RingAtt])
@@ -168,6 +166,7 @@ def load_freesolv(path='../data/', dataset = 'SAMPL.csv', bondtype_freq = 3,
     print('Done.')
 
     return(x_all, labels, target, mol_sizes)
+
 
 def load_dc_tox21(path='../data/', dataset = 'tox21.csv', bondtype_freq =20, atomtype_freq =10, keep_nan=True):
     print('Loading {} dataset...'.format(dataset))
@@ -215,7 +214,7 @@ def load_dc_tox21(path='../data/', dataset = 'tox21.csv', bondtype_freq =20, ato
     print('Transfer mol to matrices')
     for row in data[1:]:
         smile = row[13]
-        mol = MolFromSmiles(smile)
+        mol = Chem.MolFromSmiles(smile)
 
         label = row[0:12]
         label = ['nan' if ele=='' else ele for ele in label]
@@ -241,6 +240,7 @@ def load_dc_tox21(path='../data/', dataset = 'tox21.csv', bondtype_freq =20, ato
     x_all = feature_normalize(x_all)
     print('Done.')
     return (x_all, y_all, target, mol_sizes)
+
 
 def load_hiv(path='../data/', dataset = 'HIV.csv', bondtype_freq =20, atomtype_freq =10, keep_nan=True):
     print('Loading {} dataset...'.format(dataset))
@@ -296,7 +296,7 @@ def load_hiv(path='../data/', dataset = 'HIV.csv', bondtype_freq =20, atomtype_f
         num_label = [float(x) for x in label]
         num_label = [-1 if math.isnan(x) else x for x in num_label]
         try:
-            mol = MolFromSmiles(smile)
+            mol = Chem.MolFromSmiles(smile)
             (afm, adj, bft, adjTensor_OrderAtt,
              adjTensor_AromAtt, adjTensor_ConjAtt, adjTensor_RingAtt) = molToGraph(mol, filted_bondtype_list_order,
                                                                                    filted_atomtype_list_order).dump_as_matrices_Att()
@@ -313,6 +313,7 @@ def load_hiv(path='../data/', dataset = 'HIV.csv', bondtype_freq =20, atomtype_f
     x_all = feature_normalize(x_all)
     print('Done.')
     return (x_all, y_all, target, mol_sizes)
+
 
 def data_filter(x_all, y_all, target, sizes, tasks, size_cutoff=1000):
     idx_row = []
@@ -331,6 +332,7 @@ def data_filter(x_all, y_all, target, sizes, tasks, size_cutoff=1000):
 
     return(x_select, y_task)
 
+
 def normalize(mx):
     """Row-normalize sparse matrix"""
     mx_abs = np.absolute(mx)
@@ -341,6 +343,7 @@ def normalize(mx):
     r_mat_inv = sp.diags(r_inv)
     mx = r_mat_inv.dot(mx)
     return mx
+
 
 def feature_normalize(x_all):
     """Min Max Feature Scalling for Atom Feature Matrix"""
@@ -372,6 +375,7 @@ def feature_normalize(x_all):
         x_all[i][0] = afm
     return x_all
 
+
 class MolDatum():
     """
         Class that represents a train/validation/test datum
@@ -389,11 +393,13 @@ class MolDatum():
         self.target = target
         self.index = index
 
+
 def construct_dataset(x_all, y_all, target):
     output = []
     for i in range(len(x_all)):
         output.append(MolDatum(x_all[i], y_all[i], target, i))
     return(output)
+
 
 class MolDataset(Dataset):
     """
@@ -418,6 +424,7 @@ class MolDataset(Dataset):
                                                               self.data_list[key].orderAtt, self.data_list[key].aromAtt, self.data_list[key].conjAtt, self.data_list[key].ringAtt
         label = self.data_list[key].label
         return (adj, afm, bft, orderAtt, aromAtt, conjAtt, ringAtt, label)
+
 
 def mol_collate_func_reg(batch):
     """
@@ -479,6 +486,7 @@ def mol_collate_func_reg(batch):
                  torch.from_numpy(np.array(ringAtt_list)),
                  torch.from_numpy(np.array(label_list))])
 
+
 def mol_collate_func_class(batch):
 
     adj_list = []
@@ -531,10 +539,11 @@ def mol_collate_func_class(batch):
                  FloatTensor(label_list)])
     else:
         return ([torch.from_numpy(np.array(adj_list)), torch.from_numpy(np.array(afm_list)),
-             torch.from_numpy(np.array(bft_list)),torch.from_numpy(np.array(orderAtt_list)),
+                 torch.from_numpy(np.array(bft_list)),torch.from_numpy(np.array(orderAtt_list)),
                  torch.from_numpy(np.array(aromAtt_list)), torch.from_numpy(np.array(conjAtt_list)),
                  torch.from_numpy(np.array(ringAtt_list)),
                  FloatTensor(label_list)])
+
 
 def weighted_binary_cross_entropy(output, target, weights=None):
     if weights is not None:
@@ -546,6 +555,7 @@ def weighted_binary_cross_entropy(output, target, weights=None):
         loss = target * torch.log(output) + (1 - target) * torch.log(1 - output)
 
     return torch.neg(torch.mean(loss))
+
 
 def weight_tensor(weights, labels):
     # when labels is variable
@@ -564,6 +574,7 @@ def weight_tensor(weights, labels):
         return (torch.from_numpy(np.array(weight_tensor, dtype=np.float32)).cuda())
     else:
         return(torch.from_numpy(np.array(weight_tensor, dtype=np.float32)))
+
 
 def set_weight(y_all):
     weight_dic = {}
@@ -586,6 +597,7 @@ def set_weight(y_all):
         weight_dic[key] = [5000/pos_dic[key], 5000/neg_dic[key]]
     return(weight_dic)
 
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -596,10 +608,12 @@ def weights_init(m):
     if classname.find('Conv2d') != -1:
         m.weight.data.fill_(1.0)
 
+
 def rsquared(x, y):
     """ Return R^2 where x and y are array-like."""
     slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
     return r_value**2
+
 
 def got_all_bondType_tox21(dataset, path='../data/'):
 
@@ -612,10 +626,11 @@ def got_all_bondType_tox21(dataset, path='../data/'):
     bondtype_list = []
     for row in data[1:11746]:  # Wierd, the len(data) is longer, but no data was in the rest of part.
         smile = row[0]
-        mol = MolFromSmiles(smile)
+        mol = Chem.MolFromSmiles(smile)
         bondtype_list = fillBondType(mol, bondtype_list)
     bondtype_list.sort()
     return(bondtype_list)
+
 
 def got_all_bondType_tox21_dic(dataset, path='../data/'):
     if dataset == 'coley_tox21.tdf':
@@ -646,11 +661,12 @@ def got_all_bondType_tox21_dic(dataset, path='../data/'):
             continue
         smile = row[smile_idx]
         try:
-            mol = MolFromSmiles(smile)
+            mol = Chem.MolFromSmiles(smile)
             bondtype_dic = fillBondType_dic(mol, bondtype_dic)
         except AttributeError:
             pass
     return(bondtype_dic)
+
 
 def got_all_atomType_tox21_dic(dataset, path='../data/'):
 
@@ -682,11 +698,12 @@ def got_all_atomType_tox21_dic(dataset, path='../data/'):
             continue
         smile = row[smile_idx]
         try:
-            mol = MolFromSmiles(smile)
+            mol = Chem.MolFromSmiles(smile)
             atomtype_dic = fillAtomType_dic(mol, atomtype_dic)
         except AttributeError:
             pass
     return(atomtype_dic)
+
 
 def got_all_Type_solu_dic(dataset, path='../data/'):
     if dataset == 'Lipophilicity.csv':
@@ -723,7 +740,7 @@ def got_all_Type_solu_dic(dataset, path='../data/'):
             continue
         smile = row[smile_idx]
         try:
-            mol = MolFromSmiles(smile)
+            mol = Chem.MolFromSmiles(smile)
             bondtype_dic = fillBondType_dic(mol, bondtype_dic)
             atomtype_dic = fillAtomType_dic(mol, atomtype_dic)
         except AttributeError:
@@ -731,6 +748,7 @@ def got_all_Type_solu_dic(dataset, path='../data/'):
         else:
             pass
     return(bondtype_dic, atomtype_dic)
+
 
 def data_padding(x, max_size):
     btf_len = x[0][2].shape[0]
@@ -746,23 +764,26 @@ def data_padding(x, max_size):
         x_padded.append([filled_adj, filled_afm, filled_bft])
     return(x_padded)
 
+
 def construct_loader(x, y, target, batch_size, shuffle=True):
     data_set = construct_dataset(x, y, target)
     data_set = MolDataset(data_set)
     loader = torch.utils.data.DataLoader(dataset=data_set,
-                                               batch_size=batch_size,
-                                               collate_fn=mol_collate_func_class,
-                                               shuffle=shuffle)
+                                         batch_size=batch_size,
+                                         collate_fn=mol_collate_func_class,
+                                         shuffle=shuffle)
     return loader
+
 
 def construct_loader_reg(x, y, target, batch_size, shuffle=True):
     data_set = construct_dataset(x, y, target)
     data_set = MolDataset(data_set)
     loader = torch.utils.data.DataLoader(dataset=data_set,
-                                               batch_size=batch_size,
-                                               collate_fn=mol_collate_func_reg,
-                                               shuffle=shuffle)
+                                         batch_size=batch_size,
+                                         collate_fn=mol_collate_func_reg,
+                                         shuffle=shuffle)
     return loader
+
 
 def earily_stop(val_acc_history, tasks, early_stop_step_single,
                 early_stop_step_multi, required_progress):
