@@ -4,8 +4,8 @@ dependencies:
   - python>=3.6
   - pytest
   - pip
+  - numpy
+  - scipy
+  - tensorflow==1.7
   - pip:
-    - numpy
-    - scipy
-    - tensorflow==1.7
     - "--editable=/Users/dane.sherburn/repos/xerxes"

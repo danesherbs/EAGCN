@@ -2,11 +2,9 @@
 
 import numpy as np
 import rdkit.Chem.AllChem as AllChem
-import rdkit.Chem.Descriptors as Descriptors
 import rdkit.Chem.rdMolDescriptors as rdMolDescriptors
 import rdkit.Chem.EState as EState
 import rdkit.Chem.rdPartialCharges as rdPartialCharges
-import rdkit.Chem.rdChemReactions as rdRxns
 import copy
 att_dtype = np.float32
 
@@ -403,12 +401,14 @@ def oneHotVector(val, lst):
         val = lst[-1]
     return map(lambda x: x == val, lst)
 
+
 def sizeAttributeVector(molecular_attributes = False):
     m = AllChem.MolFromSmiles('CC')
     g = molToGraph(m, molecular_attributes = molecular_attributes)
     a = g.nodes[0]
     b = g.edges[0]
     return len(a.attributes) + len(b.attributes)
+
 
 def sizeAttributeVectors(bondtype_list_order, atomtype_list_order, molecular_attributes = False):
     m = AllChem.MolFromSmiles('CC')
@@ -417,6 +417,7 @@ def sizeAttributeVectors(bondtype_list_order, atomtype_list_order, molecular_att
     b = g.edges[0]
     return len(a.attributes), len(b.attributes)
 
+
 def sizeAttributeVectorsAtt(bondtype_list_order, atomtype_list_order, molecular_attributes = False):
     m = AllChem.MolFromSmiles('CC')
     g = molToGraph(m, bondtype_list_order,atomtype_list_order, molecular_attributes = molecular_attributes)
@@ -424,8 +425,8 @@ def sizeAttributeVectorsAtt(bondtype_list_order, atomtype_list_order, molecular_
     b = g.edges[0]
     return len(a.attributes), len(b.attributesAtt)+len(a.attributesAtt)
 
-def fillBondType(rdmol, bondtype_list):
 
+def fillBondType(rdmol, bondtype_list):
     # Add bonds
     for bond in rdmol.GetBonds():
         BeginAtom, EndAtom = bond.GetBeginAtom(), bond.GetEndAtom()
@@ -439,6 +440,7 @@ def fillBondType(rdmol, bondtype_list):
         else:
             bondtype_list.append(bond_type)
     return(bondtype_list)
+
 
 def fillBondType_dic(rdmol, bondtype_dic):
     # Add bonds
@@ -454,6 +456,7 @@ def fillBondType_dic(rdmol, bondtype_dic):
         else:
             bondtype_dic[bond_type] = 1
     return(bondtype_dic)
+
 
 def fillAtomType_dic(rdmol, atomtype_dic):
     for atom in rdmol.GetAtoms():
