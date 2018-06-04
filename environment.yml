@@ -5,7 +5,7 @@ dependencies:
   - pytest
   - pip
   - numpy
-  - scipy
+  - deepchem
   - tensorflow==1.7
   - pip:
     - "--editable=/Users/dane.sherburn/repos/xerxes"
