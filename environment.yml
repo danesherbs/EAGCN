@@ -6,3 +6,4 @@ dependencies:
   - pip:
     - numpy
     - scipy
+    - "--editable=/Users/dane.sherburn/repos/xerxes"
